@@ -1,0 +1,201 @@
+// Ecoo — esquema Prisma (PostgreSQL)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model PlanSuscripcion {
+  id_plan             Int       @id @default(autoincrement()) @map("id_plan")
+  nombre              String    @db.VarChar(100)
+  costo_mensual       Decimal   @db.Decimal(10, 2)
+  limite_ecocoins_mes Int
+  empresas            Empresa[]
+
+  @@map("planes_suscripcion")
+}
+
+model Usuario {
+  id_usuario      Int                  @id @default(autoincrement()) @map("id_usuario")
+  nombre          String               @db.VarChar(250)
+  telefono        String               @unique @db.VarChar(50)
+  correo          String               @unique @db.VarChar(150)
+  password_hash   String
+  foto_perfil_url String?
+  universidad     String?              @db.VarChar(100)
+  fecha_registro  DateTime             @default(now())
+  estado          String               @default("activo") @db.VarChar(20)
+  acciones        Accion[]
+  cupones         Cupon[]
+  transacciones   TransaccionEcocoin[]
+
+  @@map("usuarios")
+}
+
+model Administrador {
+  id_admin      Int      @id @default(autoincrement()) @map("id_admin")
+  nombre        String   @db.VarChar(250)
+  correo        String   @unique @db.VarChar(150)
+  password_hash String
+  rol           String   @default("moderador") @db.VarChar(20)
+  acciones      Accion[]
+
+  @@map("administradores")
+}
+
+model Empresa {
+  id_empresa           Int            @id @default(autoincrement()) @map("id_empresa")
+  nombre               String         @db.VarChar(250)
+  logo_url             String?
+  tipo_empresa         String?        @db.VarChar(50)
+  correo_contacto      String         @unique @db.VarChar(150)
+  password_hash        String
+  id_plan_suscripcion  Int
+  fecha_inicio         DateTime       @db.Date
+  estado               String         @default("activo") @db.VarChar(20)
+  estado_suscripcion   String         @default("activa") @db.VarChar(20)
+  plan                 PlanSuscripcion @relation(fields: [id_plan_suscripcion], references: [id_plan])
+  puntos               PuntoEcologico[]
+  recompensas          Recompensa[]
+  reglas               ReglaPunto[]
+
+  @@map("empresas")
+}
+
+model TipoReciclaje {
+  id_tipo       Int              @id @default(autoincrement()) @map("id_tipo")
+  codigo        String           @unique @db.VarChar(50)
+  nombre        String           @db.VarChar(100)
+  unidad_medida String           @db.VarChar(30)
+  reglas        ReglaPunto[]
+  puntos        PuntoEcologico[]
+
+  @@map("tipos_reciclaje")
+}
+
+model ReglaPunto {
+  id_regla           Int              @id @default(autoincrement()) @map("id_regla")
+  id_empresa         Int
+  id_tipo            Int
+  puntos_por_unidad  Int
+  co2_por_unidad     Decimal          @default(0.05) @db.Decimal(6, 3)
+  peso_kg_por_unidad Decimal          @default(0.03) @db.Decimal(6, 3)
+  estado             String           @default("activo") @db.VarChar(20)
+  vigencia_inicio    DateTime?        @db.Date
+  vigencia_fin       DateTime?        @db.Date
+  observaciones      String?
+  empresa            Empresa          @relation(fields: [id_empresa], references: [id_empresa])
+  tipo               TipoReciclaje    @relation(fields: [id_tipo], references: [id_tipo])
+  puntos             PuntoEcologico[]
+
+  @@index([id_empresa, id_tipo])
+  @@map("reglas_puntos")
+}
+
+model PuntoEcologico {
+  id_punto               Int             @id @default(autoincrement()) @map("id_punto")
+  id_empresa             Int?
+  id_regla               Int?
+  id_tipo                Int?
+  nombre                 String          @db.VarChar(250)
+  nombre_campana         String?         @db.VarChar(200)
+  ubicacion_lat          Decimal?        @db.Decimal(9, 6)
+  ubicacion_lng          Decimal?        @db.Decimal(9, 6)
+  tipo_accion_permitida  String          @db.VarChar(50)
+  qr_codigo              String          @unique @db.VarChar(100)
+  pregunta_label         String          @default("¿Cuánto estás depositando?") @db.VarChar(500)
+  pregunta_tipo          String          @default("numero") @db.VarChar(20)
+  unidad                 String?         @db.VarChar(30)
+  min_cantidad           Decimal         @default(1) @db.Decimal(8, 2)
+  max_cantidad           Decimal?        @db.Decimal(8, 2)
+  cooldown_horas         Int             @default(4)
+  fecha_expiracion       DateTime?
+  estado                 String          @default("activo") @db.VarChar(20)
+  empresa                Empresa?        @relation(fields: [id_empresa], references: [id_empresa])
+  regla                  ReglaPunto?     @relation(fields: [id_regla], references: [id_regla])
+  tipoReciclaje          TipoReciclaje?  @relation(fields: [id_tipo], references: [id_tipo])
+  acciones               Accion[]
+
+  @@map("puntos_ecologicos")
+}
+
+model Accion {
+  id_accion            Int              @id @default(autoincrement()) @map("id_accion")
+  id_usuario           Int?
+  id_punto             Int?
+  foto_url             String
+  cantidad_declarada   Decimal?         @db.Decimal(8, 2)
+  respuesta_resumen    String?          @db.VarChar(250)
+  ecocoins_estimados   Int              @default(0)
+  estado_validacion    String           @default("pendiente") @db.VarChar(20)
+  motivo_rechazo       String?
+  tipo_validador       String           @default("manual") @db.VarChar(20)
+  id_admin_validador   Int?
+  ia_score_confianza   Decimal?         @db.Decimal(3, 2)
+  ia_metadatos         Json?
+  ecocoins_ganados     Int              @default(0)
+  peso_kg              Decimal          @default(0) @db.Decimal(5, 2)
+  co2_evitado          Decimal          @default(0) @db.Decimal(5, 2)
+  fecha_registro       DateTime         @default(now())
+  fecha_validacion     DateTime?
+  usuario              Usuario?         @relation(fields: [id_usuario], references: [id_usuario])
+  punto                PuntoEcologico?  @relation(fields: [id_punto], references: [id_punto])
+  admin_validador      Administrador?   @relation(fields: [id_admin_validador], references: [id_admin])
+  transacciones        TransaccionEcocoin[]
+
+  @@index([estado_validacion])
+  @@index([id_usuario, id_punto])
+  @@map("acciones")
+}
+
+model Recompensa {
+  id_recompensa         Int       @id @default(autoincrement()) @map("id_recompensa")
+  id_empresa_proveedora Int?
+  titulo                String    @db.VarChar(250)
+  descripcion           String    @db.Text
+  costo_ecocoins        Int
+  stock_disponible      Int
+  stock_reservado       Int       @default(0)
+  fecha_inicio          DateTime? @db.Date
+  fecha_fin             DateTime? @db.Date
+  estado                String    @default("activo") @db.VarChar(20)
+  empresa               Empresa?  @relation(fields: [id_empresa_proveedora], references: [id_empresa])
+  cupones               Cupon[]
+
+  @@map("recompensas")
+}
+
+model Cupon {
+  id_cupon         Int                  @id @default(autoincrement()) @map("id_cupon")
+  id_usuario       Int?
+  id_recompensa    Int?
+  codigo_unico     String               @unique @default(uuid()) @db.Uuid
+  estado           String               @default("disponible") @db.VarChar(20)
+  fecha_generacion DateTime             @default(now())
+  fecha_canje      DateTime?
+  usuario          Usuario?             @relation(fields: [id_usuario], references: [id_usuario])
+  recompensa       Recompensa?          @relation(fields: [id_recompensa], references: [id_recompensa])
+  transacciones    TransaccionEcocoin[]
+
+  @@index([codigo_unico])
+  @@map("cupones")
+}
+
+model TransaccionEcocoin {
+  id_transaccion   Int      @id @default(autoincrement()) @map("id_transaccion")
+  id_usuario       Int?
+  tipo             String   @db.VarChar(10)
+  monto            Int
+  id_accion_origen Int?
+  id_cupon_destino Int?
+  fecha            DateTime @default(now())
+  usuario          Usuario? @relation(fields: [id_usuario], references: [id_usuario])
+  accion_origen    Accion?  @relation(fields: [id_accion_origen], references: [id_accion])
+  cupon_destino    Cupon?   @relation(fields: [id_cupon_destino], references: [id_cupon])
+
+  @@index([id_usuario])
+  @@map("transacciones_ecocoins")
+}
